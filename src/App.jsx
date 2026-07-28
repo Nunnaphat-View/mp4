@@ -36,6 +36,7 @@ function App() {
   // Output states
   const [outputUrl, setOutputUrl] = useState('')
   const [outputName, setOutputName] = useState('')
+  const [customName, setCustomName] = useState('')
   const [isMuted, setIsMuted] = useState(false)
   
   // Toast notifications
@@ -387,7 +388,9 @@ function App() {
       const downloadUrl = URL.createObjectURL(blob)
       
       setOutputUrl(downloadUrl)
-      setOutputName(`trimmed-${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}.${format}`)
+      const baseName = `trimmed-${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}`
+      setOutputName(`${baseName}.${format}`)
+      setCustomName(baseName)
       setProgress(100)
       setStatusMessage('เสร็จสมบูรณ์!')
       showToast('แปลงไฟล์และตัดเสียงสำเร็จ!', 'success')
@@ -416,6 +419,7 @@ function App() {
     setEndTime(0)
     setOutputUrl('')
     setOutputName('')
+    setCustomName('')
     setProgress(0)
     setStatusMessage('')
     setIsPlaying(false)
@@ -699,7 +703,64 @@ function App() {
                   )}
                 </div>
 
-                <a href={outputUrl} download={outputName} className="btn-download">
+                {/* Custom File Name Input */}
+                <div style={{ margin: '8px 0 4px', width: '100%', boxSizing: 'border-box' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '12.5px', 
+                    fontWeight: '600', 
+                    marginBottom: '6px', 
+                    color: 'var(--text-main)', 
+                    textAlign: 'left' 
+                  }}>
+                    ชื่อไฟล์ตอนบันทึก:
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px' }}>
+                    <input 
+                      type="text" 
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      style={{
+                        flexGrow: 1,
+                        background: '#ffffff',
+                        border: '1.5px solid var(--border-color)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '10px 14px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        fontFamily: 'inherit',
+                        color: 'var(--text-dark)',
+                        outline: 'none',
+                        transition: 'border-color 0.2s',
+                        boxSizing: 'border-box',
+                        minWidth: 0
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
+                      onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                      placeholder="ระบุชื่อไฟล์..."
+                    />
+                    <span style={{ 
+                      fontSize: '13.5px', 
+                      fontWeight: '700', 
+                      color: 'var(--text-muted)',
+                      background: '#ede8df',
+                      border: '1.5px solid var(--border-color)',
+                      padding: '10px 14px',
+                      borderRadius: 'var(--radius-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      userSelect: 'none'
+                    }}>
+                      .{format}
+                    </span>
+                  </div>
+                </div>
+
+                <a 
+                  href={outputUrl} 
+                  download={customName ? `${customName.trim()}.${format}` : outputName} 
+                  className="btn-download"
+                >
                   <Download size={18} /> ดาวน์โหลดไฟล์ ({format.toUpperCase()})
                 </a>
 
