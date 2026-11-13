@@ -15,7 +15,8 @@
     "@ffmpeg/util": "^0.12.2",
     "lucide-react": "^1.27.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "youtubei.js": "^18.3.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

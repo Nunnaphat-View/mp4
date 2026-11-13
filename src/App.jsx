@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { 
   Upload, 
-  Video, 
   Music, 
   Download, 
   RefreshCw, 
@@ -15,11 +14,14 @@ import {
   VolumeX,
   Volume2
 } from 'lucide-react'
+import YouTubeConverter from './components/YouTubeConverter'
+import { getFFmpeg } from './utils/ffmpeg'
 
 // Maximum duration constraint (30 seconds)
 const MAX_TRIM_DURATION = 30
 
 function App() {
+  const [activeTab, setActiveTab] = useState('youtube')
   const [file, setFile] = useState(null)
   const [duration, setDuration] = useState(0)
   const [startTime, setStartTime] = useState(0)
@@ -227,74 +229,9 @@ function App() {
     showToast('รีเซ็ตการเลือกช่วงเวลาแล้ว')
   }
 
-  // Dynamic FFmpeg load
+  // Shared FFmpeg loader
   const loadFFmpeg = async () => {
-    if (ffmpegRef.current) return ffmpegRef.current
-    
-    setStatusMessage('กำลังเตรียมระบบแปลงไฟล์...')
-    
-    const { FFmpeg } = await import('@ffmpeg/ffmpeg')
-    const { toBlobURL } = await import('@ffmpeg/util')
-    
-    const ffmpeg = new FFmpeg()
-    
-    // Connect progress hook
-    ffmpeg.on('progress', ({ progress }) => {
-      setProgress(Math.round(progress * 100))
-    })
-    
-    // Connect log hook for debugging
-    ffmpeg.on('log', ({ message }) => {
-      console.log('FFmpeg log:', message)
-    })
-
-    let loaded = false
-    const loadErrors = []
-
-    // Try same-origin local files first
-    try {
-      setStatusMessage('กำลังเชื่อมต่อระบบแปลงไฟล์ในเครื่อง (Local)...')
-      const origin = window.location.origin
-      if (origin && origin !== 'null') {
-        const localCore = `${origin}/ffmpeg-core.js`
-        const localWasm = `${origin}/ffmpeg-core.wasm`
-        
-        await ffmpeg.load({
-          coreURL: await toBlobURL(localCore, 'text/javascript'),
-          wasmURL: await toBlobURL(localWasm, 'application/wasm'),
-        })
-        loaded = true
-        console.log('FFmpeg loaded successfully from local assets.')
-      }
-    } catch (localErr) {
-      console.warn('Failed to load FFmpeg from local assets. Falling back to CDN...', localErr)
-      loadErrors.push(localErr)
-    }
-
-    // Try CDN fallback if local load failed
-    if (!loaded) {
-      try {
-        setStatusMessage('กำลังดาวน์โหลดระบบแปลงไฟล์จากคลาวด์ (CDN)...')
-        const cdnBase = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm'
-        
-        await ffmpeg.load({
-          coreURL: await toBlobURL(`${cdnBase}/ffmpeg-core.js`, 'text/javascript'),
-          wasmURL: await toBlobURL(`${cdnBase}/ffmpeg-core.wasm`, 'application/wasm'),
-        })
-        loaded = true
-        console.log('FFmpeg loaded successfully from CDN fallback.')
-      } catch (cdnErr) {
-        console.error('Failed to load FFmpeg from CDN:', cdnErr)
-        loadErrors.push(cdnErr)
-      }
-    }
-
-    if (!loaded) {
-      throw new Error('ไม่สามารถเริ่มต้นโมดูลตัดคลิปได้ กรุณาลองเปิดใช้งานหน้าเว็บนี้ผ่านเซิร์ฟเวอร์ท้องถิ่น หรือตรวจสอบการเชื่อมต่ออินเทอร์เน็ต')
-    }
-    
-    ffmpegRef.current = ffmpeg
-    return ffmpeg
+    return getFFmpeg(setStatusMessage, setProgress)
   }
 
   // Conversion process
@@ -478,44 +415,77 @@ function App() {
       <header className="app-header">
         <div className="logo-badge">
           <span className="logo-dot"></span>
-          <span>100% Client Offline Converter</span>
+          <span>{activeTab === 'youtube' ? 'YouTube & YT Music to MP3' : '100% Client Offline Converter'}</span>
         </div>
-        <h1 className="app-title">ตัดคลิป & แปลงไฟล์</h1>
+        <h1 className="app-title">
+          {activeTab === 'youtube' ? 'แปลง YouTube เป็น MP3' : 'ตัดคลิป & แปลงไฟล์'}
+        </h1>
         <p className="app-subtitle">
-          อัปโหลดวีดีโอ ตัดเลือกช่วงไม่เกิน 30 วินาที และแปลงเป็นไฟล์ MP4 หรือ M4A ได้ทันทีในบราวเซอร์คุณ (ไม่มีการอัปโหลดไฟล์ไปที่เซิร์ฟเวอร์)
+          {activeTab === 'youtube'
+            ? 'วางลิงก์ YouTube หรือ YouTube Music เพื่อแปลงเป็นไฟล์ MP3 ทั้งเพลง พร้อมแยกชื่อเพลงและศิลปินสำหรับตั้งชื่อไฟล์ให้อัตโนมัติ'
+            : 'อัปโหลดวีดีโอ ตัดเลือกช่วงไม่เกิน 30 วินาที และแปลงเป็นไฟล์ MP4 หรือ M4A ได้ทันทีในบราวเซอร์คุณ (ไม่มีการอัปโหลดไฟล์ไปที่เซิร์ฟเวอร์)'}
         </p>
       </header>
 
-      {/* STEP 1: Upload Video */}
-      {!file && (
-        <div 
-          className={`glass-card active-card ${dragActive ? 'drag-active' : ''}`}
-          onDragEnter={handleDrag}
-          onDragOver={handleDrag}
-          onDragLeave={handleDrag}
-          onDrop={handleDrop}
+      {/* Tab Navigation */}
+      <div className="tab-nav">
+        <button 
+          type="button"
+          className={`tab-btn ${activeTab === 'youtube' ? 'active' : ''}`}
+          onClick={() => setActiveTab('youtube')}
         >
-          <div className="card-step step-active">
-            <div className="step-num">1</div>
-            <div className="step-title">อัปโหลดวีดีโอของคุณ</div>
-          </div>
-          
-          <div className="dropzone" onClick={() => fileInputRef.current?.click()}>
-            <input 
-              type="file" 
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept="video/*" 
-              hidden 
-            />
-            <div className="dropzone-icon">
-              <Upload size={24} />
-            </div>
-            <p className="dropzone-text">ลากไฟล์มาวางตรงนี้ หรือ แตะเพื่อเลือกไฟล์</p>
-            <p className="dropzone-hint">รองรับไฟล์ MP4, MOV, WEBM, MKV และอื่นๆ</p>
-          </div>
-        </div>
+          <Music size={15} />
+          <span>YouTube เป็น MP3</span>
+          <span className="tab-badge">ใหม่</span>
+        </button>
+        <button 
+          type="button"
+          className={`tab-btn ${activeTab === 'trim' ? 'active' : ''}`}
+          onClick={() => setActiveTab('trim')}
+        >
+          <Scissors size={15} />
+          <span>ตัดคลิป & แปลงไฟล์</span>
+        </button>
+      </div>
+
+      {/* TAB 1: YouTube to MP3 */}
+      {activeTab === 'youtube' && (
+        <YouTubeConverter showToast={showToast} />
       )}
+
+      {/* TAB 2: Trim & Convert Local Video */}
+      {activeTab === 'trim' && (
+        <>
+          {/* STEP 1: Upload Video */}
+          {!file && (
+            <div 
+              className={`glass-card active-card ${dragActive ? 'drag-active' : ''}`}
+              onDragEnter={handleDrag}
+              onDragOver={handleDrag}
+              onDragLeave={handleDrag}
+              onDrop={handleDrop}
+            >
+              <div className="card-step step-active">
+                <div className="step-num">1</div>
+                <div className="step-title">อัปโหลดวีดีโอของคุณ</div>
+              </div>
+              
+              <div className="dropzone" onClick={() => fileInputRef.current?.click()}>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="video/*" 
+                  hidden 
+                />
+                <div className="dropzone-icon">
+                  <Upload size={24} />
+                </div>
+                <p className="dropzone-text">ลากไฟล์มาวางตรงนี้ หรือ แตะเพื่อเลือกไฟล์</p>
+                <p className="dropzone-hint">รองรับไฟล์ MP4, MOV, WEBM, MKV และอื่นๆ</p>
+              </div>
+            </div>
+          )}
 
       {/* STEP 2: Video Preview & Trim Controls */}
       {file && (
@@ -771,6 +741,8 @@ function App() {
             )}
           </div>
         </>
+      )}
+      </>
       )}
 
       <footer className="app-footer">
