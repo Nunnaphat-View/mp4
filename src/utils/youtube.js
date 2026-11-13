@@ -176,7 +176,20 @@ async function readStreamWithProgress(response, onProgress) {
 }
 
 /**
- * Fetches the audio stream directly from our local backend proxy (YouTube InnerTube API)
+ * Get current API backend base URL (supports custom URL or VITE_API_URL environment variable)
+ */
+export function getApiBaseUrl() {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('backend_api_url');
+    if (custom) return custom.trim().replace(/\/$/, '');
+  }
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl.trim().replace(/\/$/, '');
+  return '';
+}
+
+/**
+ * Fetches the audio stream directly from our backend proxy (YouTube InnerTube / yt-dlp API)
  * @param {string} videoId 
  * @param {function} onProgress 
  * @returns {Promise<{ rawBuffer: Uint8Array, isMp3: boolean }>}
@@ -188,7 +201,10 @@ async function fetchAudioSource(videoId, onProgress) {
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 seconds timeout for full song
 
   try {
-    const response = await fetch(`/api/yt-convert?videoId=${videoId}`, {
+    const apiBase = getApiBaseUrl();
+    const endpoint = `${apiBase}/api/yt-convert?videoId=${videoId}`;
+
+    const response = await fetch(endpoint, {
       signal: controller.signal
     });
 
@@ -196,11 +212,15 @@ async function fetchAudioSource(videoId, onProgress) {
 
     if (!response.ok) {
       let errorMsg = 'เซิร์ฟเวอร์ปฏิเสธการดาวน์โหลด';
-      try {
-        const errJson = await response.json();
-        if (errJson.error) errorMsg = errJson.error;
-      } catch {
-        // Ignored
+      if (response.status === 404 && !apiBase && typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+        errorMsg = 'ไม่พบ Backend บน Vercel กรุณาเปิดใช้งานผ่าน Render หรือตั้งค่า Backend URL';
+      } else {
+        try {
+          const errJson = await response.json();
+          if (errJson.error) errorMsg = errJson.error;
+        } catch {
+          // Ignored
+        }
       }
       throw new Error(errorMsg);
     }

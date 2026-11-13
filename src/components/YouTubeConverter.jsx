@@ -10,19 +10,23 @@ import {
   Disc,
   FileAudio,
   X,
-  Sparkles
+  Sparkles,
+  Settings
 } from 'lucide-react'
 import {
   extractVideoId,
   fetchYouTubeMetadata,
   convertToMp3,
-  sanitizeFilename
+  sanitizeFilename,
+  getApiBaseUrl
 } from '../utils/youtube'
 
 export default function YouTubeConverter({ showToast }) {
   const [url, setUrl] = useState('')
   const [loadingInfo, setLoadingInfo] = useState(false)
   const [videoData, setVideoData] = useState(null)
+  const [showServerModal, setShowServerModal] = useState(false)
+  const [backendUrlInput, setBackendUrlInput] = useState(() => getApiBaseUrl())
 
   // Editable song & artist metadata
   const [songTitle, setSongTitle] = useState('')
@@ -206,6 +210,19 @@ export default function YouTubeConverter({ showToast }) {
     setStatusMessage('')
   }
 
+  const handleSaveBackendUrl = (val) => {
+    const cleaned = (val || '').trim().replace(/\/$/, '')
+    setBackendUrlInput(cleaned)
+    if (cleaned) {
+      localStorage.setItem('backend_api_url', cleaned)
+      showToast('บันทึก Backend URL เรียบร้อยแล้ว', 'success')
+    } else {
+      localStorage.removeItem('backend_api_url')
+      showToast('ใช้ Backend ค่าเริ่มต้น', 'info')
+    }
+    setShowServerModal(false)
+  }
+
   // Cleanup effect
   useEffect(() => {
     return () => {
@@ -217,16 +234,106 @@ export default function YouTubeConverter({ showToast }) {
 
   return (
     <div className="yt-converter-container">
+      {/* Backend Settings Modal */}
+      {showServerModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+          onClick={() => setShowServerModal(false)}
+        >
+          <div 
+            className="glass-card" 
+            style={{ 
+              maxWidth: '420px', 
+              width: '100%', 
+              backgroundColor: '#ffffff', 
+              boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+              padding: '20px',
+              borderRadius: '14px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ fontWeight: 600, fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Settings size={16} /> ตั้งค่าเซิร์ฟเวอร์ Backend (Render)
+              </div>
+              <button 
+                type="button" 
+                className="remove-btn" 
+                onClick={() => setShowServerModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
+              หากเปิดใช้งานผ่าน Vercel ให้ระบุ URL ของ Render Web Service ที่ Deploy ไว้ (เช่น <code>https://mp4-xxxx.onrender.com</code>)
+            </p>
+
+            <input
+              type="text"
+              className="yt-url-input"
+              style={{ width: '100%', boxSizing: 'border-box', marginBottom: '14px', fontSize: '13px' }}
+              placeholder="https://your-service.onrender.com"
+              value={backendUrlInput}
+              onChange={(e) => setBackendUrlInput(e.target.value)}
+            />
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={() => handleSaveBackendUrl('')}
+                style={{ fontSize: '12px', padding: '6px 12px' }}
+              >
+                ค่าเริ่มต้น
+              </button>
+              <button 
+                type="button" 
+                className="btn-primary" 
+                onClick={() => handleSaveBackendUrl(backendUrlInput)}
+                style={{ fontSize: '12px', padding: '6px 14px' }}
+              >
+                บันทึก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* STEP 1: Paste YouTube / YouTube Music Link */}
       <div className="glass-card active-card">
-        <div className="card-step step-active">
-          <div className="step-num">1</div>
-          <div className="step-title">วางลิงก์ YouTube หรือ YouTube Music</div>
-          {videoData && (
-            <button className="remove-btn" onClick={handleReset} style={{ marginLeft: 'auto' }} title="เริ่มใหม่">
-              <X size={18} />
+        <div className="card-step step-active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="step-num">1</div>
+            <div className="step-title">วางลิงก์ YouTube หรือ YouTube Music</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowServerModal(true)}
+              title="ตั้งค่าเซิร์ฟเวอร์ Backend"
+              style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', borderRadius: '6px' }}
+            >
+              <Settings size={13} />
+              {getApiBaseUrl() ? 'Backend: เชื่อมแล้ว' : 'Backend'}
             </button>
-          )}
+            {videoData && (
+              <button className="remove-btn" onClick={handleReset} title="เริ่มใหม่">
+                <X size={18} />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="yt-input-group">
