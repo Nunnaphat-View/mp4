@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "start": "node server.js",
+    "mobile": "node start-mobile.js",
     "lint": "oxlint",
     "preview": "vite preview"
   },
