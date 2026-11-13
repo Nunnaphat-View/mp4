@@ -30,3 +30,4 @@ EXPOSE 10000
 
 # Start the unified frontend & backend server
 CMD ["node", "server.js"]
+
