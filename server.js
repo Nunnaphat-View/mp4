@@ -74,48 +74,67 @@ const server = http.createServer((req, res) => {
     const ytDlpPath = resolveYtDlp()
 
     const args = [
-      '-f', 'ba/b',
+      '-f', 'ba/b[height<=720]/b',
+      '--force-ipv4',
       '--no-playlist',
-      '--extractor-args', 'youtube:player_client=ios,android,web',
+      '--extractor-args', 'youtube:player_client=android,web',
       '-o', '-',
       `https://www.youtube.com/watch?v=${videoId}`
     ]
 
     const ytProcess = spawn(ytDlpPath, args)
 
-    res.statusCode = 200
-    res.setHeader('Content-Type', 'audio/webm')
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${encodeURIComponent(filename)}.audio"`
-    )
-
-    ytProcess.stdout.pipe(res)
-
+    let hasStartedStreaming = false
     let stderr = ''
+    let receivedBytes = 0
+
     ytProcess.stderr.on('data', (chunk) => {
       stderr += chunk.toString()
       const line = chunk.toString().trim()
-      if (line.includes('[download]') || line.includes('[info]')) {
-        console.log(`[yt-dlp ${videoId}] ${line.slice(0, 80)}`)
+      if (line.includes('[download]') || line.includes('[info]') || line.includes('ERROR') || line.includes('WARNING')) {
+        console.log(`[yt-dlp ${videoId}] ${line.slice(0, 100)}`)
       }
     })
 
+    ytProcess.stdout.on('data', (chunk) => {
+      receivedBytes += chunk.length
+      if (!hasStartedStreaming) {
+        hasStartedStreaming = true
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'audio/webm')
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="${encodeURIComponent(filename)}.audio"`
+        )
+      }
+      res.write(chunk)
+    })
+
     ytProcess.on('close', (code) => {
-      if (code !== 0 && !res.headersSent) {
-        console.error(`[yt-dlp] Process exited with code ${code}:`, stderr)
-        res.statusCode = 500
-        res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ error: stderr || `yt-dlp exited with code ${code}` }))
+      console.log(`[yt-dlp ${videoId}] Process finished (code ${code}), bytes sent: ${receivedBytes}`)
+      if (!hasStartedStreaming || receivedBytes < 1000) {
+        if (!res.headersSent) {
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json')
+          let errorMsg = stderr.trim()
+          if (errorMsg.includes('Sign in to confirm you\'re not a bot')) {
+            errorMsg = 'YouTube แจ้งเตือนความปลอดภัย (Bot Verification) กรุณารอสักครู่แล้วลองใหม่อีกครั้ง'
+          }
+          res.end(JSON.stringify({ error: errorMsg || `ไม่ได้รับข้อมูลไฟล์เสียง (exit code ${code})` }))
+        } else {
+          res.end()
+        }
+      } else {
+        res.end()
       }
     })
 
     ytProcess.on('error', (err) => {
-      console.error('[yt-dlp] Spawn error:', err)
+      console.error('[yt-dlp] Process error:', err)
       if (!res.headersSent) {
         res.statusCode = 500
         res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ error: err.message }))
+        res.end(JSON.stringify({ error: `เกิดข้อผิดพลาดภายในระบบ: ${err.message}` }))
       }
     })
 

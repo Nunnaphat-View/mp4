@@ -229,7 +229,21 @@ async function fetchAudioSource(videoId, onProgress) {
     const rawBuffer = await readStreamWithProgress(response, onProgress);
 
     if (!rawBuffer || rawBuffer.byteLength < 10000) {
-      throw new Error('ไฟล์เสียงที่ได้รับมีขนาดไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง');
+      let specificError = '';
+      if (rawBuffer && rawBuffer.byteLength > 0) {
+        try {
+          const text = new TextDecoder().decode(rawBuffer);
+          if (text.startsWith('{')) {
+            const parsed = JSON.parse(text);
+            if (parsed.error) specificError = parsed.error;
+          } else if (text.includes('error') || text.includes('Error') || text.includes('404')) {
+            specificError = text.slice(0, 150);
+          }
+        } catch {
+          // ignore
+        }
+      }
+      throw new Error(specificError || 'ไฟล์เสียงที่ได้รับมีขนาดไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง');
     }
 
     return {
